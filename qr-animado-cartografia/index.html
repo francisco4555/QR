@@ -1,0 +1,499 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Explora Cartografía y Territorio — QR animado</title>
+<meta name="description" content="Animación QR del portal Cartografía y Territorio (UNRC · LUDM). Del territorio al código." />
+<style>
+  :root {
+    --paper: #faf5ed;
+    --navy:  #041326;
+    --ink:   #132036;
+    --wine:  #800033;
+    --pink:  #bf0053;
+    --orange:#ec4b08;
+    --gold:  #ffa911;
+    --purple:#6e0c60;
+    --muted: #675b55;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; }
+  body {
+    background: var(--paper);
+    font-family: Arial, Helvetica, sans-serif;
+    display: grid;
+    place-items: center;
+    padding: 16px;
+    min-height: 100vh;
+    color: var(--ink);
+  }
+  .stage {
+    width: min(100%, 92vmin);
+    max-width: 760px;
+    aspect-ratio: 1 / 1;
+    position: relative;
+  }
+  canvas {
+    display: block;
+    width: 100%;
+    height: 100%;
+    border-radius: 4px;
+    /* sombra sutil para separar del fondo en escritorio */
+    box-shadow: 0 12px 40px rgba(4,19,38,0.14), 0 2px 8px rgba(4,19,38,0.08);
+  }
+  .note {
+    text-align: center;
+    margin-top: 14px;
+    font-size: 13px;
+    letter-spacing: .02em;
+    color: var(--muted);
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .note::after { content: " (movimiento reducido activado)"; }
+  }
+</style>
+</head>
+<body>
+  <div class="stage"><canvas id="c" aria-label="Animación que transforma un mapa en un código QR del portal Cartografía y Territorio"></canvas></div>
+  <script>
+  'use strict';
+
+  /* ============================================================
+   *  QR ANIMADO · «Cartografía y Territorio»
+   *  Del territorio al código QR.
+   *
+   *  Paleta y tipografía extraídas del portal:
+   *  https://francisco4555.github.io/Cartograf-a-y-Territorio/
+   *  (:root — wine, pink, orange, gold, navy, paper, ink)
+   *
+   *  La matriz QR apunta al FORMULARIO DE REGISTRO (V8, EC-M,
+   *  49×49 + 4 módulos de zona de silencio = 57×57). Verificada:
+   *  decodifica exactamente a la URL del formulario.
+   * ============================================================ */
+
+  // ---- Matriz QR (57×57, '1'=módulo oscuro, '0'=claro/zona silencio) ----
+  const QR_STR = [
+"000000000000000000000000000000000000000000000000000000000",
+"000000000000000000000000000000000000000000000000000000000",
+"000000000000000000000000000000000000000000000000000000000",
+"000000000000000000000000000000000000000000000000000000000",
+"000011111110010011011010100100000011010111001011111110000",
+"000010000010001111000110111101010110000011111010000010000",
+"000010111010101101011001001111101101101100011010111010000",
+"000010111010110100010011010011010101001111010010111010000",
+"000010111010110001100100011111110111100101000010111010000",
+"000010000010110111000101001000110001111100100010000010000",
+"000011111110101010101010101010101010101010101011111110000",
+"000000000000110001000100011000111011101011001000000000000",
+"000010111110000001111001111111100111011110011011111000000",
+"000000001000011111101101010111000110000001000010010110000",
+"000000111011100111001001111011110000100001111001101110000",
+"000001100101001100111101100100011010100000000000100010000",
+"000011000110010101110100011111000001011110001001010010000",
+"000000100000010101111001101111011111100100010010000100000",
+"000001101011100110100010111010110000011100100000110110000",
+"000001001100000010110001101011110100001011000000110010000",
+"000010000011001010111100110111001001111101110001001000000",
+"000001100000101000110111000111011100101001000111000000000",
+"000010000111110101100100100001101011110100010011010110000",
+"000001011001110100111111010001101100100000000011100110000",
+"000001011110000011000001111010100111001011111110001000000",
+"000000001101001000111011000011101010100101000111110110000",
+"000011111111100100111000011111110001011111111111100110000",
+"000011101000100000111101011000110000100100011000100010000",
+"000011001010111000010100011010100001001110101010110100000",
+"000010111000101001000111001000101011000000011000111100000",
+"000011111111111000010010101111100101000010111111100110000",
+"000001000000000100011101001110001100111001110110010110000",
+"000011011011001100011111010010000111000111000100111000000",
+"000010100000010000101110011101101010100100011111001000000",
+"000010000011011110010101001000001101111111110000000110000",
+"000001110000101101010110010100100011010011101011010110000",
+"000010110111001001110110110001110110000010010101100110000",
+"000000001100010110011110011110100011010011100101000000000",
+"000000101111000101001001110010010110000011000010010110000",
+"000001100101001111000011001001101100101100011000100110000",
+"000010011010111001101000101100000101010111111100101110000",
+"000000010000100101101001011111100111100100010011001000000",
+"000001000111100001101001100001000001011000100011110110000",
+"000001110001100011010101011110110000110111101100000110000",
+"000011100011101010011000001111100111010111011111100110000",
+"000000000000110101000111011000111111100011001000101010000",
+"000011111110001100000001001010100111011100001010100110000",
+"000010000010100110000100011000111100100000001000100110000",
+"000010111010110100011110011111100100000110001111111010000",
+"000010111010101101011101101000011111000001011011110100000",
+"000010111010110111100100101111000101001100101011010110000",
+"000010000010000001110001111100010100001010010110000010000",
+"000011111110100111100000100101001001111001111100000110000",
+"000000000000000000000000000000000000000000000000000000000",
+"000000000000000000000000000000000000000000000000000000000",
+"000000000000000000000000000000000000000000000000000000000",
+"000000000000000000000000000000000000000000000000000000000"
+  ].join('');
+
+  const GRID = 57;              // tamaño total (49 datos + 8 silencio)
+  const PALETTE = {
+    paper:'#faf5ed', navy:'#041326', ink:'#132036', wine:'#800033',
+    pink:'#bf0053', orange:'#ec4b08', gold:'#ffa911', purple:'#6e0c60',
+    muted:'#675b55'
+  };
+
+  /* ---- utilidades ---- */
+  const clamp01 = v => v < 0 ? 0 : (v > 1 ? 1 : v);
+  const lerp    = (a,b,t) => a + (b-a)*t;
+  const smooth  = t => { t = clamp01(t); return t*t*(3-2*t); };
+  const easeOutCubic = t => { t = clamp01(t); return 1 - Math.pow(1-t,3); };
+  const easeInOut  = t => { t = clamp01(t); return t<0.5 ? 4*t*t*t : 1-Math.pow(-2*t+2,3)/2; };
+  const easeOutBack = t => { t = clamp01(t); const c1=1.70158, c3=c1+1; return 1 + c3*Math.pow(t-1,3) + c1*Math.pow(t-1,2); };
+  // envolvente de opacidad: entra en [i0,i1], sale en [o0,o1]
+  const env = (t,i0,i1,o0,o1) => clamp01(Math.min((t-i0)/(i1-i0), (o1-t)/(o1-o0)));
+
+  // PRNG determinista (mismo mapa en cada reproducción y en el render de vídeo)
+  function mulberry32(a){ return function(){ a|=0; a=a+0x6D2B79F5|0; let t=Math.imul(a^a>>>15,1|a); t=t+Math.imul(t^t>>>7,61|t)^t; return ((t^t>>>14)>>>0)/4294967296; }; }
+  const rand = mulberry32(20241006);
+
+  /* ---- geometría de la escena (espacio lógico 1000×1000) ---- */
+  const S = 1000;
+  const QR_W = 620;                    // lado del QR completo (incluye silencio)
+  const QR_X = (S-QR_W)/2, QR_Y = (S-QR_W)/2;   // 190
+  const MOD = QR_W / GRID;             // ~15.12 px lógicos por módulo
+
+  /* ---- matriz oscura + datos por módulo ---- */
+  const dark = new Uint8Array(GRID*GRID);
+  const modules = [];                  // {r,c,dst,src,color,arrive}
+  for (let r=0;r<GRID;r++) for (let c=0;c<GRID;c++){
+    const i = r*GRID+c, on = QR_STR[i]==='1';
+    dark[i] = on ? 1 : 0;
+  }
+  // clusters de "datos" para la nube inicial (escena 4)
+  const clusters = [];
+  for (let k=0;k<9;k++) clusters.push({ x: 90+rand()*820, y: 90+rand()*820 });
+  const mapColors = [PALETTE.wine, PALETTE.pink, PALETTE.orange, PALETTE.gold, PALETTE.navy, PALETTE.purple];
+  const cx = QR_X + QR_W/2, cy = QR_Y + QR_W/2;   // centro del QR
+  for (let r=0;r<GRID;r++) for (let c=0;c<GRID;c++){
+    const i = r*GRID+c;
+    if (!dark[i]) continue;
+    const fx = QR_X + (c+0.5)*MOD, fy = QR_Y + (r+0.5)*MOD;
+    const cl = clusters[(rand()*clusters.length)|0];
+    const sx = cl.x + (rand()-0.5)*150, sy = cl.y + (rand()-0.5)*150;
+    // distancia al centro del QR (normalizada) -> orden de llegada
+    const d = Math.hypot((c+0.5-GRID/2),(r+0.5-GRID/2)) / (GRID*0.72);
+    const arrive = 4.05 + d*1.25 + rand()*0.15;
+    modules.push({ r,c, fx,fy, sx,sy, color: mapColors[(rand()*mapColors.length)|0], arrive });
+  }
+
+  /* ---- mapa (capas cartográficas, deterministas) ---- */
+  function blobbyRing(cx, cy, baseR, amp, n, phase){
+    const pts=[];
+    for (let i=0;i<n;i++){
+      const a = (i/n)*Math.PI*2;
+      const r = baseR*(1 + amp*(Math.sin(a*3+phase)+0.5*Math.cos(a*5-phase*2)));
+      pts.push([cx+Math.cos(a)*r, cy+Math.sin(a)*r]);
+    }
+    return pts;
+  }
+  function ringPath(ctx,pts){ ctx.beginPath(); ctx.moveTo(pts[0][0],pts[0][1]); for(let i=1;i<pts.length;i++) ctx.lineTo(pts[i][0],pts[i][1]); ctx.closePath(); }
+
+  const contours = [];
+  { // tres "colinas" topográficas -> curvas de nivel concéntricas
+    const hills = [ [430,540], [650,460], [300,720] ];
+    for (let h=0;h<hills.length;h++){
+      const [hx,hy]=hills[h];
+      for (let k=0;k<8;k++){
+        contours.push(blobbyRing(hx,hy, 40+k*42, 0.16, 46, rand()*6.28));
+      }
+    }
+  }
+  const gridLines = [];
+  for (let g=40; g<=960; g+=80){ gridLines.push({v:g}); gridLines.push({h:g}); }
+
+  const polygons = [];
+  for (let p=0;p<9;p++){
+    const pcx = 130+rand()*740, pcy = 110+rand()*760, pr = 55+rand()*115, sides = 4+(rand()*3|0);
+    const pts=[];
+    for (let s=0;s<sides;s++){
+      const a=(s/sides)*Math.PI*2 + rand()*0.6;
+      const rr = pr*(0.7+rand()*0.5);
+      pts.push([pcx+Math.cos(a)*rr, pcy+Math.sin(a)*rr]);
+    }
+    polygons.push({ pts, color: p%2? PALETTE.pink : PALETTE.wine, fill: p%2===0 });
+  }
+
+  const points = [];
+  for (let i=0;i<20;i++) points.push({ x: 70+rand()*860, y: 70+rand()*860, gold: rand()>0.55 });
+
+  // red vial (grafo de nodos cercanos)
+  const nodes = [];
+  for (let i=0;i<16;i++) nodes.push({ x: 80+rand()*840, y: 80+rand()*840 });
+  const roads = [];
+  for (let i=0;i<nodes.length;i++){
+    for (let j=i+1;j<nodes.length;j++){
+      if (Math.hypot(nodes[i].x-nodes[j].x, nodes[i].y-nodes[j].y) < 250) roads.push([nodes[i], nodes[j]]);
+    }
+  }
+  const boundary = blobbyRing(500,520, 360, 0.10, 40, 1.7);   // delimitación urbana
+  const pois = nodes.filter((_,i)=> i%2===0).slice(0,7);
+
+  /* ---- offscreens ---- */
+  const mapFull = document.createElement('canvas'); mapFull.width=S; mapFull.height=S;
+  const mapLow  = document.createElement('canvas'); mapLow.width=28;  mapLow.height=28;
+  const qrTiles = document.createElement('canvas'); qrTiles.width=GRID*10; qrTiles.height=GRID*10;
+
+  function drawMap(ctx, aContours, aGrid, aPolygons, aPoints, aRoads, aBoundary, aPois){
+    // retícula de coordenadas
+    if (aGrid>0.003){
+      ctx.strokeStyle = PALETTE.navy; ctx.globalAlpha = 0.16*aGrid; ctx.lineWidth = 1;
+      ctx.beginPath();
+      for (const l of gridLines){ if (l.v!==undefined){ ctx.moveTo(l.v,0); ctx.lineTo(l.v,S);} else { ctx.moveTo(0,l.h); ctx.lineTo(S,l.h);} }
+      ctx.stroke();
+      ctx.globalAlpha = 1;
+    }
+    // curvas de nivel
+    if (aContours>0.003){
+      ctx.strokeStyle = PALETTE.ink; ctx.globalAlpha = 0.42*aContours; ctx.lineWidth = 1.5;
+      for (const ring of contours){ ringPath(ctx,ring); ctx.stroke(); }
+      ctx.globalAlpha = 1;
+    }
+    // polígonos territoriales
+    if (aPolygons>0.003){
+      for (const pg of polygons){
+        ctx.globalAlpha = (pg.fill?0.16:0.10)*aPolygons;
+        if (pg.fill){ ctx.fillStyle = pg.color; ringPath(ctx,pg.pts); ctx.fill(); }
+        ctx.strokeStyle = pg.color; ctx.lineWidth = 1.6; ctx.globalAlpha = 0.75*aPolygons;
+        ringPath(ctx,pg.pts); ctx.stroke();
+      }
+      ctx.globalAlpha = 1;
+    }
+    // red vial
+    if (aRoads>0.003){
+      ctx.strokeStyle = PALETTE.orange; ctx.globalAlpha = 0.7*aRoads; ctx.lineWidth = 2.6; ctx.lineCap='round';
+      ctx.beginPath();
+      for (const [a,b] of roads){ ctx.moveTo(a.x,a.y); ctx.lineTo(b.x,b.y); }
+      ctx.stroke();
+      ctx.globalAlpha = 1;
+    }
+    // delimitación urbana (trazo discontinuo)
+    if (aBoundary>0.003){
+      ctx.strokeStyle = PALETTE.purple; ctx.globalAlpha = 0.8*aBoundary; ctx.lineWidth = 2.2;
+      ctx.setLineDash([12,9]); ringPath(ctx,boundary); ctx.stroke(); ctx.setLineDash([]);
+      ctx.globalAlpha = 1;
+    }
+    // puntos georreferenciados (con retícula de marcador)
+    if (aPoints>0.003){
+      for (const p of points){
+        const col = p.gold ? PALETTE.gold : PALETTE.pink;
+        ctx.strokeStyle = col; ctx.globalAlpha = 0.85*aPoints; ctx.lineWidth = 1.1;
+        ctx.beginPath();
+        ctx.moveTo(p.x-6,p.y); ctx.lineTo(p.x+6,p.y);
+        ctx.moveTo(p.x,p.y-6); ctx.lineTo(p.x,p.y+6);
+        ctx.stroke();
+        ctx.fillStyle = col; ctx.beginPath(); ctx.arc(p.x,p.y,3,0,6.283); ctx.fill();
+      }
+      ctx.globalAlpha = 1;
+    }
+    // puntos de interés
+    if (aPois>0.003){
+      ctx.fillStyle = PALETTE.navy; ctx.globalAlpha = 0.9*aPois;
+      for (const p of pois){ ctx.fillRect(p.x-3,p.y-3,6,6); }
+      ctx.globalAlpha = 1;
+    }
+  }
+
+  function drawModule(ctx, m, alpha, color, sizeF, px, py){
+    // px,py = esquina superior-izquierda actual de la celda (lógico)
+    const s = MOD*sizeF;
+    const x = px + m.c*MOD + (MOD-s)/2;
+    const y = py + m.r*MOD + (MOD-s)/2;
+    ctx.globalAlpha = alpha; ctx.fillStyle = color;
+    ctx.fillRect(x, y, s, s);
+  }
+
+  // render previo: mapa completo y QR en baldosas nítidas
+  (function prerender(){
+    drawMap(mapFull.getContext('2d'), 1,1,1,1,1,1,1);
+    const lc = mapLow.getContext('2d'); lc.imageSmoothingEnabled=true;  // promediado de área -> pixelación coherente
+    lc.drawImage(mapFull, 0,0,S,S, 0,0,28,28);
+    const qc = qrTiles.getContext('2d');
+    qc.fillStyle = PALETTE.navy;
+    for (let r=0;r<GRID;r++) for (let c=0;c<GRID;c++) if (dark[r*GRID+c]) qc.fillRect(c*10,r*10,10,10);
+  })();
+
+  /* ---- lienzo principal ---- */
+  const canvas = document.getElementById('c');
+  const ctx = canvas.getContext('2d');
+  let scale = 1;
+  function resize(){
+    const rect = canvas.getBoundingClientRect();
+    const dpr = Math.min(window.devicePixelRatio||1, 2);
+    const px = Math.max(2, Math.round(rect.width * dpr));
+    canvas.width = px; canvas.height = px;
+    scale = px / S;
+  }
+  window.addEventListener('resize', resize); resize();
+
+  const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  // modo fondo transparente (?transparent=1): solo formación del QR + escaneo, sin mapa ni fondo
+  const transparent = new URLSearchParams(location.search).get('transparent') === '1';
+  if (transparent){ document.documentElement.style.background = 'transparent'; document.body.style.background = 'transparent'; }
+
+  /* ---- línea de tiempo (segundos) ---- */
+  const D = {
+    t1: 1.4,  t2: 2.8,  t3: 4.0,  t4: 6.5,     // escenas 1..4
+    hold: 11.5, fade: 12.1                       // escena 5 + fundido de reinicio
+  };
+
+  function hexToRgb(h){ const n=parseInt(h.slice(1),16); return [(n>>16)&255,(n>>8)&255,n&255]; }
+  function mix(c1,c2,t){
+    const a=hexToRgb(c1), b=hexToRgb(c2);
+    return `rgb(${(a[0]+(b[0]-a[0])*t)|0},${(a[1]+(b[1]-a[1])*t)|0},${(a[2]+(b[2]-a[2])*t)|0})`;
+  }
+
+  function drawStaticQR(a){
+    if (a<=0) return;
+    ctx.globalAlpha = a;
+    ctx.imageSmoothingEnabled = false;
+    ctx.drawImage(qrTiles, 0,0, qrTiles.width,qrTiles.height, QR_X,QR_Y, QR_W,QR_W);
+    ctx.globalAlpha = 1;
+  }
+
+  function drawScanLine(t){
+    // recorre el perímetro EXTERIOR al código (sin tocar módulos ni zona de silencio)
+    const inset = 20;                     // fuera del área del QR
+    const x0 = QR_X-inset, y0 = QR_Y-inset, w = QR_W+inset*2, h = QR_W+inset*2;
+    const per = 2*(w+h);
+    const seg = per*0.12;                 // longitud del segmento luminoso
+    const pos = (t % 1) * per;            // 0..1 -> 0..per
+    let sx,sy,ex,ey;
+    if (pos < w){ sx=x0+pos; sy=y0; ex=Math.min(sx+seg,x0+w); ey=y0; }
+    else if (pos < w+h){ const p=pos-w; sx=x0+w; sy=y0+p; ex=sx; ey=Math.min(sy+seg,y0+h); }
+    else if (pos < 2*w+h){ const p=pos-w-h; sx=x0+w-p; sy=y0+h; ex=Math.max(sx-seg,x0); ey=sy; }
+    else { const p=pos-2*w-h; sx=x0; sy=y0+h-p; ex=sx; ey=Math.max(sy-seg,y0); }
+    ctx.save();
+    ctx.strokeStyle = PALETTE.gold; ctx.lineWidth = 3.4; ctx.lineCap='round';
+    ctx.shadowColor = 'rgba(255,169,17,0.85)'; ctx.shadowBlur = 14;
+    ctx.beginPath(); ctx.moveTo(sx,sy); ctx.lineTo(ex,ey); ctx.stroke();
+    ctx.restore();
+  }
+
+  function drawText(t){
+    const a = env(t, 6.8, 7.4, D.hold, D.fade);
+    if (a<=0) return;
+    ctx.textAlign='center'; ctx.textBaseline='middle';
+    // titular
+    ctx.globalAlpha = a;
+    ctx.fillStyle = PALETTE.wine;
+    ctx.font = '600 40px Georgia, "Times New Roman", serif';
+    ctx.fillText('Explora Cartografía y Territorio', S/2, 104);
+    // filete dorado
+    ctx.fillStyle = PALETTE.gold;
+    ctx.fillRect(S/2-46, 142, 92, 2.4);
+    // subtítulo
+    ctx.fillStyle = PALETTE.muted;
+    ctx.font = '25px Arial, Helvetica, sans-serif';
+    ctx.fillText('Escanea el código y descubre el portal', S/2, 906);
+    ctx.globalAlpha = 1;
+  }
+
+  /* ---- bucle principal ---- */
+  function renderFrame(t){
+    if (reduced){ t = 7.5; }                // estado final estático y escaneable
+    t = t % D.fade;
+
+    ctx.setTransform(scale,0,0,scale,0,0);
+    // fondo
+    if (transparent){ ctx.clearRect(0,0,S,S); }
+    else {
+      ctx.fillStyle = PALETTE.paper; ctx.fillRect(0,0,S,S);
+      // viñeta sutil (profundidad)
+      const vg = ctx.createRadialGradient(S/2,S/2, 300, S/2,S/2, 720);
+      vg.addColorStop(0,'rgba(4,19,38,0)'); vg.addColorStop(1,'rgba(4,19,38,0.05)');
+      ctx.fillStyle = vg; ctx.fillRect(0,0,S,S);
+    }
+
+    const dim = 1 - 0.38*smooth((t-1.3)/0.4);   // atenúa la base al aparecer las capas de análisis
+
+    if (!transparent){
+      // --- Escenas 1-2: mapa por capas ---
+      const aC = env(t, 0.0,1.0, 2.85,3.40) * dim;
+      const aG = env(t, 0.15,1.0, 2.85,3.30) * dim;
+      const aP = env(t, 0.35,1.15, 2.85,3.40) * dim;
+      const aPt= env(t, 0.60,1.30, 2.85,3.40) * dim;
+      const aR = env(t, 1.35,2.00, 2.85,3.40);
+      const aB = env(t, 1.50,2.15, 2.85,3.40);
+      const aPo= env(t, 1.70,2.30, 2.85,3.40);
+      drawMap(ctx, aC,aG,aP,aPt,aR,aB,aPo);
+
+      // --- Escena 3: pixelación (mapa -> módulos) ---
+      const aPix = env(t, 2.95,3.35, 4.00,4.40);
+      if (aPix>0.003){
+        ctx.globalAlpha = aPix;
+        ctx.imageSmoothingEnabled = false;
+        ctx.drawImage(mapLow, 0,0,28,28, 0,0,S,S);
+        ctx.globalAlpha = 1;
+      }
+      // barrido luminoso de transformación
+      const aSweep = env(t, 3.4,3.7, 4.1,4.3);
+      if (aSweep>0.003){
+        ctx.save(); ctx.globalAlpha = 0.5*aSweep;
+        const g = ctx.createLinearGradient(-200,-200, 1200,1200);
+        g.addColorStop(0,'rgba(255,169,17,0)'); g.addColorStop(0.5,'rgba(255,169,17,0.55)'); g.addColorStop(1,'rgba(255,169,17,0)');
+        ctx.fillStyle = g;
+        const off = (t-3.4)/0.8*1600;
+        ctx.fillRect(-300+off, -300, 240, 1600);
+        ctx.restore();
+      }
+    }
+
+    // --- Escena 4: formación del QR ---
+    const aM = env(t, 3.9,4.2, D.t4, D.t4+0.05);
+    if (aM>0.003){
+      for (const m of modules){
+        const p = clamp01((t - m.arrive) / 0.95);
+        if (p<=0) continue;
+        const e = easeInOut(p);
+        const x = lerp(m.sx, m.fx, e);          // centro del módulo (espacio lógico)
+        const y = lerp(m.sy, m.fy, e);
+        const col = mix(m.color, PALETTE.navy, smooth((p-0.25)/0.6));
+        const sizeF = lerp(0.72, 1.0, smooth((p-0.35)/0.5));
+        ctx.globalAlpha = aM * clamp01(0.55 + p*0.6);
+        ctx.fillStyle = col;
+        const s = MOD*sizeF;
+        ctx.fillRect(x - s/2, y - s/2, s, s);
+        ctx.globalAlpha = 1;
+      }
+    }
+
+    // --- Escena 5: QR estático + escaneo + texto ---
+    if (t >= D.t4){
+      drawStaticQR(env(t, D.t4, D.t4+0.15, D.hold, D.fade));
+      const aScan = env(t, 7.0,7.4, D.hold, D.fade);
+      if (aScan>0 && !reduced){
+        ctx.globalAlpha = aScan;
+        drawScanLine((t - 7.0) / 3.6);      // un ciclo de perímetro cada ~3.6 s
+        ctx.globalAlpha = 1;
+      }
+      drawText(t);
+    }
+
+    // fundido de salida -> reinicio limpio
+    if (t >= D.hold){
+      const a = smooth((t-D.hold)/(D.fade-D.hold));
+      if (transparent){ ctx.globalCompositeOperation='destination-out'; ctx.globalAlpha = a; ctx.fillStyle='#000'; ctx.fillRect(0,0,S,S); ctx.globalCompositeOperation='source-over'; ctx.globalAlpha=1; }
+      else { ctx.fillStyle = PALETTE.paper; ctx.globalAlpha = a; ctx.fillRect(0,0,S,S); ctx.globalAlpha = 1; }
+    }
+  }
+
+  // bucle en vivo
+  const t0 = performance.now();
+  let rafId;
+  function frame(now){ if (window.__frozen) return; renderFrame((now - t0)/1000); rafId = requestAnimationFrame(frame); }
+  rafId = requestAnimationFrame(frame);
+
+  // ganchos deterministas para renderizado por lotes (vídeo / capturas / QA)
+  window.__renderFrame = renderFrame;
+  window.__freeze = () => { window.__frozen = true; cancelAnimationFrame(rafId); };
+  </script>
+</body>
+</html>
